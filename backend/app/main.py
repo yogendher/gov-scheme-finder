@@ -19,12 +19,14 @@ from .schemas import (
     ApplicationOut,
 )
 from .security import hash_password, verify_password, create_access_token
+from .config import settings
 
 app = FastAPI(title="Government Scheme Finder API", version="2.0.0")
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
