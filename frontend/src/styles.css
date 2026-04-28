@@ -84,15 +84,18 @@ button:disabled { opacity: 0.65; cursor: not-allowed; }
 .chip.alt { background: #dcfce7; color: #166534; }
 .stack-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .list-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
+.link-btn { display: inline-block; margin-top: 6px; text-decoration: none; background: #0f172a; color: #fff; padding: 8px 12px; border-radius: 8px; }
 .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .error-text { color: #b91c1c; font-weight: 600; margin-top: 10px; }
 .success-text { color: #166534; font-weight: 600; margin-top: 10px; }
 .hint-text { color: #475569; font-size: 13px; margin-top: 6px; }
 .pagination-row { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
 .quick-filters { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.eligibility-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 @media (max-width: 900px) {
   .top-shell { grid-template-columns: 1fr; }
   .auth-grid, .profile-grid { grid-template-columns: 1fr; }
   .auth-two-col { grid-template-columns: 1fr; }
+  .eligibility-grid { grid-template-columns: 1fr; }
 }

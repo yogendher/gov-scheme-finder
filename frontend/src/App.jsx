@@ -139,7 +139,7 @@ function DashboardPage() {
 }
 
 function SchemesPage() {
-  const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme } = shared;
+  const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme, checkSingleSchemeEligibility, schemeEligibilityStatus } = shared;
   const navigate = useNavigate();
   const location = useLocation();
   const bookmarkedOnly = new URLSearchParams(location.search).get("bookmarked") === "1";
@@ -183,12 +183,20 @@ function SchemesPage() {
               </div>
               <p><strong>Ministry:</strong> {s.ministry}</p>
               <p><strong>Benefits:</strong> {s.benefits}</p>
-              <a href={s.apply_link} target="_blank" rel="noreferrer">Open Scheme Link</a>
+              <a className="link-btn" href={s.apply_link} target="_blank" rel="noreferrer">Open Official Portal</a>
               <div className="actions">
                 <button onClick={() => toggleBookmark(s.id)}>{bookmarkSet.has(s.id) ? "Bookmarked" : "Bookmark"}</button>
+                <button className="secondary" onClick={() => checkSingleSchemeEligibility(s.id)}>Eligibility Check</button>
                 {user?.role === "admin" && <button className="secondary" onClick={() => { startEdit(s); navigate("/admin"); }}>Edit</button>}
                 {user?.role === "admin" && <button className="danger" onClick={() => onDeleteScheme(s.id)}>Delete</button>}
               </div>
+              {schemeEligibilityStatus[s.id] && (
+                <p className={schemeEligibilityStatus[s.id].match ? "success-text" : "error-text"}>
+                  {schemeEligibilityStatus[s.id].match
+                    ? "Eligible based on current profile/check input"
+                    : `Not eligible: ${schemeEligibilityStatus[s.id].reasons.join(", ")}`}
+                </p>
+              )}
             </article>
           ))}
         </div>
@@ -199,6 +207,8 @@ function SchemesPage() {
 
 function EligibilityPage() {
   const { eligibility, setEligibility, runEligibility, runEligibilityFromProfile, eligibilityResult, profile } = shared;
+  const eligible = eligibilityResult.filter((row) => row.match);
+  const notEligible = eligibilityResult.filter((row) => !row.match);
   return (
     <>
       <h1>Eligibility Checker</h1>
@@ -214,11 +224,30 @@ function EligibilityPage() {
           <input placeholder="State" value={eligibility.state} onChange={(e) => setEligibility({ ...eligibility, state: e.target.value })} required />
           <button type="submit">Check Eligibility</button>
         </form>
-        <ul>
-          {eligibilityResult.map((row) => (
-            <li key={row.scheme.id}>{row.scheme.name} - {row.match ? "Eligible" : `Not eligible (${row.reasons.join(", ")})`}</li>
+      </section>
+      <section className="eligibility-grid">
+        <article className="card">
+          <h2>Eligible Schemes ({eligible.length})</h2>
+          {eligible.length === 0 && <p className="hint-text">No eligible schemes for current details.</p>}
+          {eligible.map((row) => (
+            <div key={row.scheme.id} className="scheme">
+              <h3>{row.scheme.name}</h3>
+              <p className="success-text">Eligible</p>
+              <p className="hint-text">{row.scheme.state} • {row.scheme.category}</p>
+            </div>
           ))}
-        </ul>
+        </article>
+        <article className="card">
+          <h2>Not Eligible ({notEligible.length})</h2>
+          {notEligible.length === 0 && <p className="hint-text">All listed schemes are currently eligible.</p>}
+          {notEligible.map((row) => (
+            <div key={row.scheme.id} className="scheme">
+              <h3>{row.scheme.name}</h3>
+              <p className="error-text">Not eligible</p>
+              <p className="hint-text">{row.reasons.join(", ")}</p>
+            </div>
+          ))}
+        </article>
       </section>
     </>
   );
@@ -319,6 +348,7 @@ export default function App() {
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
   const [bootstrapMessage, setBootstrapMessage] = useState("");
+  const [schemeEligibilityStatus, setSchemeEligibilityStatus] = useState({});
 
   const api = useMemo(() => axios.create({ baseURL: API_URL }), []);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -449,6 +479,16 @@ export default function App() {
     setEligibilityResult(res.data.results);
   };
 
+  const checkSingleSchemeEligibility = async (schemeId) => {
+    const res = await api.post("/api/v1/eligibility", eligibility, { headers: authHeaders });
+    const row = res.data.find((item) => item.scheme.id === schemeId);
+    if (!row) return;
+    setSchemeEligibilityStatus((prev) => ({
+      ...prev,
+      [schemeId]: { match: row.match, reasons: row.reasons || [] },
+    }));
+  };
+
   const exportCsv = () => {
     if (schemes.length === 0) return;
     const headers = ["id", "name", "ministry", "category", "state", "min_age", "max_income", "eligibility_text", "benefits", "apply_link"];
@@ -494,6 +534,8 @@ export default function App() {
     profileError,
     bootstrapSchemes,
     bootstrapMessage,
+    checkSingleSchemeEligibility,
+    schemeEligibilityStatus,
     form,
     setForm,
     onCreateScheme,
