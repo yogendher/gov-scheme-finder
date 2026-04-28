@@ -33,6 +33,8 @@ function toNumberForm(data) {
 export default function App() {
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem("user");
@@ -76,16 +78,28 @@ export default function App() {
 
   const submitAuth = async (e) => {
     e.preventDefault();
+    setAuthError("");
+    setAuthLoading(true);
     const path = authMode === "login" ? "/api/v1/auth/login" : "/api/v1/auth/register";
     const payload = authMode === "login"
       ? { email: authForm.email, password: authForm.password }
       : { name: authForm.name, email: authForm.email, password: authForm.password };
 
-    const res = await api.post(path, payload);
-    setToken(res.data.access_token);
-    setUser(res.data.user);
-    localStorage.setItem("token", res.data.access_token);
-    localStorage.setItem("user", JSON.stringify(res.data.user));
+    try {
+      const res = await api.post(path, payload);
+      setToken(res.data.access_token);
+      setUser(res.data.user);
+      localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+    } catch (error) {
+      const message =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Authentication failed. Please try again.";
+      setAuthError(String(message));
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const logout = () => {
@@ -195,8 +209,12 @@ export default function App() {
             )}
             <input type="email" placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
             <input type="password" placeholder="Password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
-            <button type="submit">{authMode === "login" ? "Login" : "Create Account"}</button>
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create Account"}
+            </button>
           </form>
+          {authError && <p className="error-text">{authError}</p>}
+          <p className="hint-text">API: {API_URL}</p>
         </section>
       </div>
     );

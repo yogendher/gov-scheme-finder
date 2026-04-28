@@ -48,6 +48,7 @@ input, button {
 button { cursor: pointer; background: #0f172a; color: #fff; border: none; }
 button.secondary { background: #475569; }
 button.danger { background: #dc2626; }
+button:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .list {
   display: grid;
@@ -58,3 +59,5 @@ button.danger { background: #dc2626; }
 
 .scheme { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
 .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.error-text { color: #b91c1c; font-weight: 600; margin-top: 10px; }
+.hint-text { color: #475569; font-size: 13px; margin-top: 6px; }
