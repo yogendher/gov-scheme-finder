@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://gov-scheme-finder-maqp.onrender.com/api/:path*" },
-    { "source": "/health", "destination": "https://gov-scheme-finder-maqp.onrender.com/health" }
+    { "source": "/health", "destination": "https://gov-scheme-finder-maqp.onrender.com/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
