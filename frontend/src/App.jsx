@@ -37,18 +37,29 @@ function toNumberForm(data) {
 
 function AuthPage({ authMode, setAuthMode, authForm, setAuthForm, submitAuth, authLoading, authError }) {
   return (
-    <div className="container">
-      <h1>Government Scheme Finder</h1>
-      <p className="sub">Login/Register to continue</p>
-      <section className="card">
-        <div className="actions">
+    <div className="auth-shell">
+      <section className="auth-card">
+        <h1>Government Scheme Finder</h1>
+        <p className="sub">Login or create account to continue</p>
+        <div className="auth-tabs">
           <button className={authMode === "login" ? "" : "secondary"} onClick={() => setAuthMode("login")}>Login</button>
           <button className={authMode === "register" ? "" : "secondary"} onClick={() => setAuthMode("register")}>Register</button>
         </div>
-        <form className="grid" onSubmit={submitAuth}>
-          {authMode === "register" && <input placeholder="Name" value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />}
-          <input type="email" placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
-          <input type="password" placeholder="Password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
+        <form className="auth-grid" onSubmit={submitAuth}>
+          {authMode === "register" && (
+            <label className="field field-full">
+              <span>Name</span>
+              <input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />
+            </label>
+          )}
+          <label className="field">
+            <span>Email</span>
+            <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
+          </label>
           <button type="submit" disabled={authLoading}>{authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create Account"}</button>
         </form>
         {authError && <p className="error-text">{authError}</p>}
@@ -178,12 +189,29 @@ function ProfilePage() {
     <>
       <h1>User Profile</h1>
       <section className="card">
-        <form className="grid" onSubmit={saveProfile}>
-          <input type="number" placeholder="Age" value={profile.age} onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })} required />
-          <input type="number" placeholder="Annual Income" value={profile.annual_income} onChange={(e) => setProfile({ ...profile, annual_income: Number(e.target.value) })} required />
-          <input placeholder="Category" value={profile.category} onChange={(e) => setProfile({ ...profile, category: e.target.value })} required />
-          <input placeholder="State" value={profile.state} onChange={(e) => setProfile({ ...profile, state: e.target.value })} required />
-          <input placeholder="Occupation" value={profile.occupation} onChange={(e) => setProfile({ ...profile, occupation: e.target.value })} required />
+        <h2>Personal Details</h2>
+        <p className="hint-text">Eligibility recommendations use these details.</p>
+        <form className="profile-grid" onSubmit={saveProfile}>
+          <label className="field">
+            <span>Age</span>
+            <input type="number" value={profile.age} onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })} required />
+          </label>
+          <label className="field">
+            <span>Annual Income</span>
+            <input type="number" value={profile.annual_income} onChange={(e) => setProfile({ ...profile, annual_income: Number(e.target.value) })} required />
+          </label>
+          <label className="field">
+            <span>Category</span>
+            <input value={profile.category} onChange={(e) => setProfile({ ...profile, category: e.target.value })} required />
+          </label>
+          <label className="field">
+            <span>State</span>
+            <input value={profile.state} onChange={(e) => setProfile({ ...profile, state: e.target.value })} required />
+          </label>
+          <label className="field field-full">
+            <span>Occupation</span>
+            <input value={profile.occupation} onChange={(e) => setProfile({ ...profile, occupation: e.target.value })} required />
+          </label>
           <button type="submit">Save Profile</button>
         </form>
       </section>
