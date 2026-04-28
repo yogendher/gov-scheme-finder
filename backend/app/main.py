@@ -35,6 +35,132 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
+def recommended_schemes():
+    return [
+        {
+            "name": "PM Scholarship Scheme",
+            "ministry": "Ministry of Education",
+            "category": "Student",
+            "state": "All India",
+            "min_age": 17,
+            "max_income": 800000,
+            "eligibility_text": "Students in recognized institutes under income limit.",
+            "benefits": "Annual scholarship assistance.",
+            "apply_link": "https://scholarships.gov.in/",
+        },
+        {
+            "name": "PM Kisan Samman Nidhi",
+            "ministry": "Ministry of Agriculture",
+            "category": "Farmer",
+            "state": "All India",
+            "min_age": 18,
+            "max_income": 1000000,
+            "eligibility_text": "Small and marginal farmers with land records.",
+            "benefits": "Direct income support in installments.",
+            "apply_link": "https://pmkisan.gov.in/",
+        },
+        {
+            "name": "Stand Up India",
+            "ministry": "Ministry of Finance",
+            "category": "Women Startup",
+            "state": "All India",
+            "min_age": 18,
+            "max_income": 1500000,
+            "eligibility_text": "Women entrepreneurs for greenfield enterprises.",
+            "benefits": "Loan support and mentoring.",
+            "apply_link": "https://www.standupmitra.in/",
+        },
+        {
+            "name": "Ayushman Bharat PM-JAY",
+            "ministry": "Ministry of Health",
+            "category": "Health",
+            "state": "All India",
+            "min_age": 0,
+            "max_income": 500000,
+            "eligibility_text": "Eligible poor and vulnerable families.",
+            "benefits": "Health coverage up to defined amount.",
+            "apply_link": "https://pmjay.gov.in/",
+        },
+        {
+            "name": "MahaDBT Post Matric Scholarship",
+            "ministry": "Government of Maharashtra",
+            "category": "Student",
+            "state": "Maharashtra",
+            "min_age": 16,
+            "max_income": 800000,
+            "eligibility_text": "Eligible Maharashtra students in post-matric education.",
+            "benefits": "Fee reimbursement and maintenance allowance.",
+            "apply_link": "https://mahadbt.maharashtra.gov.in/",
+        },
+        {
+            "name": "Kanyashree Prakalpa",
+            "ministry": "Government of West Bengal",
+            "category": "Women Student",
+            "state": "West Bengal",
+            "min_age": 13,
+            "max_income": 120000,
+            "eligibility_text": "Girls in education under family income criteria.",
+            "benefits": "Annual and one-time financial grant.",
+            "apply_link": "https://wbkanyashree.gov.in/",
+        },
+        {
+            "name": "Rythu Bandhu",
+            "ministry": "Government of Telangana",
+            "category": "Farmer",
+            "state": "Telangana",
+            "min_age": 18,
+            "max_income": 1200000,
+            "eligibility_text": "Telangana farmers with eligible land ownership details.",
+            "benefits": "Per-acre seasonal investment support.",
+            "apply_link": "https://rythubandhu.telangana.gov.in/",
+        },
+        {
+            "name": "Mukhyamantri Yuva Swavalamban",
+            "ministry": "Government of Gujarat",
+            "category": "Student",
+            "state": "Gujarat",
+            "min_age": 17,
+            "max_income": 600000,
+            "eligibility_text": "Gujarat students meeting merit and income criteria.",
+            "benefits": "Scholarship for higher studies.",
+            "apply_link": "https://mysy.guj.nic.in/",
+        },
+        {
+            "name": "Biju Swasthya Kalyan Yojana",
+            "ministry": "Government of Odisha",
+            "category": "Health",
+            "state": "Odisha",
+            "min_age": 0,
+            "max_income": 500000,
+            "eligibility_text": "Eligible households under Odisha state health support criteria.",
+            "benefits": "Cashless treatment support at empanelled hospitals.",
+            "apply_link": "https://bsky.odisha.gov.in/",
+        },
+        {
+            "name": "Naan Mudhalvan Upskilling",
+            "ministry": "Government of Tamil Nadu",
+            "category": "Student",
+            "state": "Tamil Nadu",
+            "min_age": 16,
+            "max_income": 1000000,
+            "eligibility_text": "Students seeking career and skill development support.",
+            "benefits": "Career guidance and skill courses.",
+            "apply_link": "https://www.naanmudhalvan.tn.gov.in/",
+        },
+    ]
+
+
+def ensure_recommended_schemes(db: Session):
+    created = 0
+    for item in recommended_schemes():
+        existing = db.query(Scheme).filter(Scheme.name == item["name"]).first()
+        if not existing:
+            db.add(Scheme(**item))
+            created += 1
+    db.commit()
+    return created
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
@@ -172,6 +298,12 @@ def delete_scheme(scheme_id: int, db: Session = Depends(get_db), _: User = Depen
     return {"message": "Scheme deleted"}
 
 
+@app.post("/api/v1/admin/bootstrap-schemes")
+def bootstrap_schemes(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    created = ensure_recommended_schemes(db)
+    return {"message": "Bootstrap completed", "created": created}
+
+
 def _run_eligibility(payload: EligibilityInput, db: Session):
     schemes = db.query(Scheme).all()
     results = []
@@ -269,19 +401,6 @@ def create_application(payload: ApplicationCreate, current_user: User = Depends(
 def seed_data():
     db = SessionLocal()
     try:
-        if db.query(Scheme).count() > 0:
-            return
-
-        db.add_all([
-            Scheme(name="PM Scholarship Scheme", ministry="Ministry of Education", category="Student", state="All India", min_age=17, max_income=800000, eligibility_text="Students in recognized institutes under income limit.", benefits="Annual scholarship assistance.", apply_link="https://scholarships.gov.in/"),
-            Scheme(name="PM Kisan Samman Nidhi", ministry="Ministry of Agriculture", category="Farmer", state="All India", min_age=18, max_income=1000000, eligibility_text="Small and marginal farmers with land records.", benefits="Direct income support in installments.", apply_link="https://pmkisan.gov.in/"),
-            Scheme(name="Stand Up India", ministry="Ministry of Finance", category="Women Startup", state="All India", min_age=18, max_income=1500000, eligibility_text="Women entrepreneurs for greenfield enterprises.", benefits="Loan support and mentoring.", apply_link="https://www.standupmitra.in/"),
-            Scheme(name="Ayushman Bharat PM-JAY", ministry="Ministry of Health", category="Health", state="All India", min_age=0, max_income=500000, eligibility_text="Eligible poor and vulnerable families.", benefits="Health coverage up to defined amount.", apply_link="https://pmjay.gov.in/"),
-            Scheme(name="MahaDBT Post Matric Scholarship", ministry="Government of Maharashtra", category="Student", state="Maharashtra", min_age=16, max_income=800000, eligibility_text="Eligible Maharashtra students in post-matric education.", benefits="Fee reimbursement and maintenance allowance.", apply_link="https://mahadbt.maharashtra.gov.in/"),
-            Scheme(name="Kanyashree Prakalpa", ministry="Government of West Bengal", category="Women Student", state="West Bengal", min_age=13, max_income=120000, eligibility_text="Girls in education under family income criteria.", benefits="Annual and one-time financial grant.", apply_link="https://wbkanyashree.gov.in/"),
-            Scheme(name="Rythu Bandhu", ministry="Government of Telangana", category="Farmer", state="Telangana", min_age=18, max_income=1200000, eligibility_text="Telangana farmers with eligible land ownership details.", benefits="Per-acre seasonal investment support.", apply_link="https://rythubandhu.telangana.gov.in/"),
-            Scheme(name="Mukhyamantri Yuva Swavalamban", ministry="Government of Gujarat", category="Student", state="Gujarat", min_age=17, max_income=600000, eligibility_text="Gujarat students meeting merit and income criteria.", benefits="Scholarship for higher studies.", apply_link="https://mysy.guj.nic.in/"),
-        ])
-        db.commit()
+        ensure_recommended_schemes(db)
     finally:
         db.close()

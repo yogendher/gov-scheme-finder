@@ -108,14 +108,31 @@ function Layout({ user, logout }) {
 
 let shared = {};
 function DashboardPage() {
-  const { metrics } = shared;
+  const { metrics, schemes } = shared;
   const navigate = useNavigate();
+  const recent = schemes.slice(0, 5);
   return (
     <>
       <h1>Dashboard</h1>
       <section className="dashboard-grid">
-        <article className="metric-card"><p>Total Schemes</p><h3>{metrics.total}</h3></article>
-        <article className="metric-card clickable" onClick={() => navigate("/schemes?bookmarked=1")}><p>Bookmarked</p><h3>{metrics.savedCount}</h3></article>
+        <article className="metric-card"><p>Total Schemes</p><h3>{metrics.total}</h3><small>Across central and state programs</small></article>
+        <article className="metric-card clickable" onClick={() => navigate("/schemes?bookmarked=1")}><p>Bookmarked</p><h3>{metrics.savedCount}</h3><small>Click to open saved schemes</small></article>
+        <article className="metric-card"><p>States Covered</p><h3>{metrics.statesCount}</h3><small>Coverage footprint</small></article>
+      </section>
+      <section className="card">
+        <h2>Recently Added Schemes</h2>
+        {recent.length === 0 && <p className="hint-text">No schemes yet. Use Admin panel to bootstrap.</p>}
+        <div className="stack-list">
+          {recent.map((s) => (
+            <div key={s.id} className="list-row">
+              <div>
+                <strong>{s.name}</strong>
+                <p className="hint-text">{s.ministry}</p>
+              </div>
+              <span className="chip alt">{s.state}</span>
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );
@@ -123,6 +140,7 @@ function DashboardPage() {
 
 function SchemesPage() {
   const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme } = shared;
+  const navigate = useNavigate();
   const location = useLocation();
   const bookmarkedOnly = new URLSearchParams(location.search).get("bookmarked") === "1";
   const visibleSchemes = bookmarkedOnly ? schemes.filter((s) => bookmarkSet.has(s.id)) : schemes;
@@ -168,7 +186,7 @@ function SchemesPage() {
               <a href={s.apply_link} target="_blank" rel="noreferrer">Open Scheme Link</a>
               <div className="actions">
                 <button onClick={() => toggleBookmark(s.id)}>{bookmarkSet.has(s.id) ? "Bookmarked" : "Bookmark"}</button>
-                {user?.role === "admin" && <button className="secondary" onClick={() => startEdit(s)}>Edit</button>}
+                {user?.role === "admin" && <button className="secondary" onClick={() => { startEdit(s); navigate("/admin"); }}>Edit</button>}
                 {user?.role === "admin" && <button className="danger" onClick={() => onDeleteScheme(s.id)}>Delete</button>}
               </div>
             </article>
@@ -245,11 +263,15 @@ function ProfilePage() {
 }
 
 function AdminPage() {
-  const { form, setForm, onCreateScheme, editingSchemeId, editForm, setEditForm, onSaveEdit, cancelEdit } = shared;
+  const { form, setForm, onCreateScheme, editingSchemeId, editForm, setEditForm, onSaveEdit, cancelEdit, bootstrapSchemes, bootstrapMessage } = shared;
   return (
     <>
       <h1>Admin Panel</h1>
       <section className="card">
+        <div className="actions">
+          <button type="button" className="secondary" onClick={bootstrapSchemes}>Add Recommended Schemes</button>
+        </div>
+        {bootstrapMessage && <p className="success-text">{bootstrapMessage}</p>}
         <h2>Add Scheme</h2>
         <form className="grid" onSubmit={onCreateScheme}>
           {Object.keys(initialSchemeForm).map((key) => (
@@ -296,6 +318,7 @@ export default function App() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [bootstrapMessage, setBootstrapMessage] = useState("");
 
   const api = useMemo(() => axios.create({ baseURL: API_URL }), []);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -383,6 +406,12 @@ export default function App() {
     fetchSchemes();
   };
 
+  const bootstrapSchemes = async () => {
+    const res = await api.post("/api/v1/admin/bootstrap-schemes", {}, { headers: authHeaders });
+    setBootstrapMessage(`${res.data.created} schemes added.`);
+    fetchSchemes();
+  };
+
   const onDeleteScheme = async (id) => {
     await api.delete(`/api/v1/schemes/${id}`, { headers: authHeaders });
     fetchSchemes();
@@ -438,7 +467,7 @@ export default function App() {
   };
 
   const bookmarkSet = useMemo(() => new Set(bookmarks.map((b) => b.id)), [bookmarks]);
-  const metrics = useMemo(() => ({ total: schemes.length, savedCount: bookmarks.length }), [schemes, bookmarks]);
+  const metrics = useMemo(() => ({ total: schemes.length, savedCount: bookmarks.length, statesCount: new Set(schemes.map((s) => s.state)).size }), [schemes, bookmarks]);
 
   shared = {
     metrics,
@@ -463,6 +492,8 @@ export default function App() {
     profileSaving,
     profileMessage,
     profileError,
+    bootstrapSchemes,
+    bootstrapMessage,
     form,
     setForm,
     onCreateScheme,
