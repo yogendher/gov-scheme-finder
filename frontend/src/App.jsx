@@ -35,6 +35,11 @@ function toNumberForm(data) {
   return { ...data, min_age: Number(data.min_age), max_income: Number(data.max_income) };
 }
 
+function Toast({ toast }) {
+  if (!toast) return null;
+  return <div className={`toast ${toast.type === "error" ? "error" : "success"}`}>{toast.message}</div>;
+}
+
 function AuthPage({ authMode, setAuthMode, authForm, setAuthForm, submitAuth, authLoading, authError }) {
   return (
     <div className="auth-shell">
@@ -108,7 +113,7 @@ function Layout({ user, logout }) {
 
 let shared = {};
 function DashboardPage() {
-  const { metrics, schemes } = shared;
+  const { metrics, schemes, schemesLoading } = shared;
   const navigate = useNavigate();
   const recent = schemes.slice(0, 5);
   return (
@@ -121,7 +126,14 @@ function DashboardPage() {
       </section>
       <section className="card">
         <h2>Recently Added Schemes</h2>
-        {recent.length === 0 && <p className="hint-text">No schemes yet. Use Admin panel to bootstrap.</p>}
+        {schemesLoading && (
+          <div className="stack-list">
+            <div className="list-row skeleton-row" />
+            <div className="list-row skeleton-row" />
+            <div className="list-row skeleton-row" />
+          </div>
+        )}
+        {!schemesLoading && recent.length === 0 && <p className="hint-text">No schemes yet. Use Admin panel to bootstrap.</p>}
         <div className="stack-list">
           {recent.map((s) => (
             <div key={s.id} className="list-row">
@@ -139,7 +151,7 @@ function DashboardPage() {
 }
 
 function SchemesPage() {
-  const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme, checkSingleSchemeEligibility, schemeEligibilityStatus } = shared;
+  const { filters, setFilters, schemesLoading, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme, checkSingleSchemeEligibility, schemeEligibilityStatus } = shared;
   const navigate = useNavigate();
   const location = useLocation();
   const bookmarkedOnly = new URLSearchParams(location.search).get("bookmarked") === "1";
@@ -174,6 +186,7 @@ function SchemesPage() {
           <button type="button" className="secondary" onClick={() => setFilters({ ...filters, page: filters.page + 1 })}>Next</button>
         </div>
         <div className="list">
+          {schemesLoading && [1, 2, 3, 4].map((x) => <article key={x} className="scheme skeleton-card" />)}
           {visibleSchemes.map((s) => (
             <article className="scheme" key={s.id}>
               <h3>{s.name}</h3>
@@ -292,7 +305,7 @@ function ProfilePage() {
 }
 
 function AdminPage() {
-  const { form, setForm, onCreateScheme, editingSchemeId, editForm, setEditForm, onSaveEdit, cancelEdit, bootstrapSchemes, bootstrapMessage } = shared;
+  const { schemes, form, setForm, onCreateScheme, editingSchemeId, editForm, setEditForm, onSaveEdit, startEdit, cancelEdit, bootstrapSchemes, bootstrapMessage, onDeleteScheme } = shared;
   return (
     <>
       <h1>Admin Panel</h1>
@@ -309,18 +322,47 @@ function AdminPage() {
           <button type="submit">Add Scheme</button>
         </form>
       </section>
-      {editingSchemeId && (
-        <section className="card highlight">
-          <h2>Edit Scheme #{editingSchemeId}</h2>
-          <form className="grid" onSubmit={onSaveEdit}>
-            {Object.keys(initialSchemeForm).map((key) => (
-              <input key={key} type={key.includes("age") || key.includes("income") ? "number" : "text"} placeholder={key.replaceAll("_", " ")} value={editForm[key]} onChange={(e) => setEditForm({ ...editForm, [key]: key.includes("age") || key.includes("income") ? Number(e.target.value) : e.target.value })} required />
-            ))}
-            <button type="submit">Save Changes</button>
-            <button type="button" className="secondary" onClick={cancelEdit}>Cancel</button>
-          </form>
-        </section>
-      )}
+      <section className="card">
+        <h2>Manage Schemes</h2>
+        <div className="table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>State</th>
+                <th>Income Limit</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schemes.map((s) => (
+                <tr key={s.id}>
+                  <td>{editingSchemeId === s.id ? <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /> : s.name}</td>
+                  <td>{editingSchemeId === s.id ? <input value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} /> : s.category}</td>
+                  <td>{editingSchemeId === s.id ? <input value={editForm.state} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} /> : s.state}</td>
+                  <td>{editingSchemeId === s.id ? <input type="number" value={editForm.max_income} onChange={(e) => setEditForm({ ...editForm, max_income: Number(e.target.value) })} /> : s.max_income}</td>
+                  <td>
+                    <div className="actions">
+                      {editingSchemeId === s.id ? (
+                        <>
+                          <button type="button" onClick={onSaveEdit}>Save</button>
+                          <button type="button" className="secondary" onClick={cancelEdit}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="secondary" onClick={() => startEdit(s)}>Edit</button>
+                          <button type="button" className="danger" onClick={() => onDeleteScheme(s.id)}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
@@ -349,13 +391,20 @@ export default function App() {
   const [profileError, setProfileError] = useState("");
   const [bootstrapMessage, setBootstrapMessage] = useState("");
   const [schemeEligibilityStatus, setSchemeEligibilityStatus] = useState({});
+  const [schemesLoading, setSchemesLoading] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const api = useMemo(() => axios.create({ baseURL: API_URL }), []);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchSchemes = async () => {
-    const res = await api.get("/api/v1/schemes", { params: filters, headers: authHeaders });
-    setSchemes(res.data);
+    setSchemesLoading(true);
+    try {
+      const res = await api.get("/api/v1/schemes", { params: filters, headers: authHeaders });
+      setSchemes(res.data);
+    } finally {
+      setSchemesLoading(false);
+    }
   };
   const fetchBookmarks = async () => {
     const res = await api.get("/api/v1/bookmarks", { headers: authHeaders });
@@ -394,6 +443,7 @@ export default function App() {
       setUser(res.data.user);
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      setToast({ type: "success", message: authMode === "login" ? "Logged in successfully." : "Account created successfully." });
     } catch (error) {
       const detail = error?.response?.data?.detail;
       setAuthError(Array.isArray(detail) ? detail.map((item) => item.msg).join(", ") : String(detail || error?.message || "Authentication failed"));
@@ -421,9 +471,11 @@ export default function App() {
       setProfile(res.data);
       setEligibility({ age: res.data.age, annual_income: res.data.annual_income, category: res.data.category, state: res.data.state });
       setProfileMessage("Profile saved successfully.");
+      setToast({ type: "success", message: "Profile saved." });
     } catch (error) {
       const detail = error?.response?.data?.detail;
       setProfileError(Array.isArray(detail) ? detail.map((item) => item.msg).join(", ") : String(detail || "Unable to save profile"));
+      setToast({ type: "error", message: "Failed to save profile." });
     } finally {
       setProfileSaving(false);
     }
@@ -434,17 +486,20 @@ export default function App() {
     await api.post("/api/v1/schemes", toNumberForm(form), { headers: authHeaders });
     setForm(initialSchemeForm);
     fetchSchemes();
+    setToast({ type: "success", message: "Scheme added." });
   };
 
   const bootstrapSchemes = async () => {
     const res = await api.post("/api/v1/admin/bootstrap-schemes", {}, { headers: authHeaders });
     setBootstrapMessage(`${res.data.created} schemes added.`);
     fetchSchemes();
+    setToast({ type: "success", message: `${res.data.created} schemes added.` });
   };
 
   const onDeleteScheme = async (id) => {
     await api.delete(`/api/v1/schemes/${id}`, { headers: authHeaders });
     fetchSchemes();
+    setToast({ type: "success", message: "Scheme deleted." });
   };
   const startEdit = (scheme) => {
     setEditingSchemeId(scheme.id);
@@ -455,10 +510,11 @@ export default function App() {
     setEditForm(initialSchemeForm);
   };
   const onSaveEdit = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
     await api.put(`/api/v1/schemes/${editingSchemeId}`, toNumberForm(editForm), { headers: authHeaders });
     cancelEdit();
     fetchSchemes();
+    setToast({ type: "success", message: "Scheme updated." });
   };
 
   const toggleBookmark = async (schemeId) => {
@@ -466,17 +522,20 @@ export default function App() {
     if (isSaved) await api.delete(`/api/v1/bookmarks/${schemeId}`, { headers: authHeaders });
     else await api.post("/api/v1/bookmarks", { scheme_id: schemeId }, { headers: authHeaders });
     fetchBookmarks();
+    setToast({ type: "success", message: isSaved ? "Bookmark removed." : "Bookmarked." });
   };
 
   const runEligibility = async (e) => {
     e.preventDefault();
     const res = await api.post("/api/v1/eligibility", eligibility, { headers: authHeaders });
     setEligibilityResult(res.data);
+    setToast({ type: "success", message: "Eligibility check completed." });
   };
 
   const runEligibilityFromProfile = async () => {
     const res = await api.get("/api/v1/eligibility/from-profile", { headers: authHeaders });
     setEligibilityResult(res.data.results);
+    setToast({ type: "success", message: "Used profile details for eligibility." });
   };
 
   const checkSingleSchemeEligibility = async (schemeId) => {
@@ -536,6 +595,7 @@ export default function App() {
     bootstrapMessage,
     checkSingleSchemeEligibility,
     schemeEligibilityStatus,
+    schemesLoading,
     form,
     setForm,
     onCreateScheme,
@@ -546,8 +606,15 @@ export default function App() {
     cancelEdit,
   };
 
+  useEffect(() => {
+    if (!toast) return;
+    const timeoutId = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(timeoutId);
+  }, [toast]);
+
   return (
     <BrowserRouter>
+      <Toast toast={toast} />
       {!token ? (
         <AuthPage authMode={authMode} setAuthMode={setAuthMode} authForm={authForm} setAuthForm={setAuthForm} submitAuth={submitAuth} authLoading={authLoading} authError={authError} />
       ) : (
