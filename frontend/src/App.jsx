@@ -38,31 +38,40 @@ function toNumberForm(data) {
 function AuthPage({ authMode, setAuthMode, authForm, setAuthForm, submitAuth, authLoading, authError }) {
   return (
     <div className="auth-shell">
-      <section className="auth-card">
-        <h1>Government Scheme Finder</h1>
-        <p className="sub">Login or create account to continue</p>
-        <div className="auth-tabs">
-          <button className={authMode === "login" ? "" : "secondary"} onClick={() => setAuthMode("login")}>Login</button>
-          <button className={authMode === "register" ? "" : "secondary"} onClick={() => setAuthMode("register")}>Register</button>
+      <section className="auth-card auth-two-col">
+        <div className="auth-info">
+          <h1>Government Scheme Finder</h1>
+          <p className="sub">Discover central and state schemes quickly.</p>
+          <ul className="auth-points">
+            <li>Save profile once for faster eligibility checks</li>
+            <li>Bookmark schemes and revisit from dashboard</li>
+            <li>Direct links to official portals</li>
+          </ul>
         </div>
-        <form className="auth-grid" onSubmit={submitAuth}>
-          {authMode === "register" && (
+        <div>
+          <div className="auth-tabs">
+            <button className={authMode === "login" ? "" : "secondary"} onClick={() => setAuthMode("login")}>Login</button>
+            <button className={authMode === "register" ? "" : "secondary"} onClick={() => setAuthMode("register")}>Register</button>
+          </div>
+          <form className="auth-grid" onSubmit={submitAuth}>
+            {authMode === "register" && (
+              <label className="field field-full">
+                <span>Name</span>
+                <input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />
+              </label>
+            )}
             <label className="field field-full">
-              <span>Name</span>
-              <input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />
+              <span>Email</span>
+              <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
             </label>
-          )}
-          <label className="field">
-            <span>Email</span>
-            <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
-          </label>
-          <label className="field">
-            <span>Password</span>
-            <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
-          </label>
-          <button type="submit" disabled={authLoading}>{authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create Account"}</button>
-        </form>
-        {authError && <p className="error-text">{authError}</p>}
+            <label className="field field-full">
+              <span>Password</span>
+              <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
+            </label>
+            <button type="submit" disabled={authLoading}>{authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create Account"}</button>
+          </form>
+          {authError && <p className="error-text">{authError}</p>}
+        </div>
       </section>
     </div>
   );
@@ -129,6 +138,18 @@ function SchemesPage() {
           <input placeholder="Filter by state" value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value, page: 1 })} />
           <button onClick={exportCsv} type="button" className="secondary">Export CSV</button>
         </div>
+        <div className="quick-filters">
+          {["All India", "Student", "Farmer", "Women", "Health"].map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className="secondary"
+              onClick={() => setFilters({ ...filters, category: tag === "All India" ? "" : tag, state: tag === "All India" ? "All India" : filters.state, page: 1 })}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
         <div className="pagination-row">
           <button type="button" className="secondary" disabled={filters.page <= 1} onClick={() => setFilters({ ...filters, page: filters.page - 1 })}>Prev</button>
           <span>Page {filters.page}</span>
@@ -138,9 +159,11 @@ function SchemesPage() {
           {visibleSchemes.map((s) => (
             <article className="scheme" key={s.id}>
               <h3>{s.name}</h3>
+              <div className="badge-row">
+                <span className="chip">{s.category}</span>
+                <span className="chip alt">{s.state}</span>
+              </div>
               <p><strong>Ministry:</strong> {s.ministry}</p>
-              <p><strong>Category:</strong> {s.category}</p>
-              <p><strong>State:</strong> {s.state}</p>
               <p><strong>Benefits:</strong> {s.benefits}</p>
               <a href={s.apply_link} target="_blank" rel="noreferrer">Open Scheme Link</a>
               <div className="actions">
@@ -184,7 +207,7 @@ function EligibilityPage() {
 }
 
 function ProfilePage() {
-  const { profile, setProfile, saveProfile } = shared;
+  const { profile, setProfile, saveProfile, profileSaving, profileMessage, profileError } = shared;
   return (
     <>
       <h1>User Profile</h1>
@@ -212,8 +235,10 @@ function ProfilePage() {
             <span>Occupation</span>
             <input value={profile.occupation} onChange={(e) => setProfile({ ...profile, occupation: e.target.value })} required />
           </label>
-          <button type="submit">Save Profile</button>
+          <button type="submit" disabled={profileSaving}>{profileSaving ? "Saving..." : "Save Profile"}</button>
         </form>
+        {profileMessage && <p className="success-text">{profileMessage}</p>}
+        {profileError && <p className="error-text">{profileError}</p>}
       </section>
     </>
   );
@@ -268,6 +293,9 @@ export default function App() {
   const [eligibility, setEligibility] = useState(initialEligibility);
   const [eligibilityResult, setEligibilityResult] = useState([]);
   const [profile, setProfile] = useState(initialProfile);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   const api = useMemo(() => axios.create({ baseURL: API_URL }), []);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -281,9 +309,13 @@ export default function App() {
     setBookmarks(res.data);
   };
   const fetchProfile = async () => {
-    const res = await api.get("/api/v1/profile", { headers: authHeaders });
-    setProfile(res.data);
-    setEligibility({ age: res.data.age, annual_income: res.data.annual_income, category: res.data.category, state: res.data.state });
+    try {
+      const res = await api.get("/api/v1/profile", { headers: authHeaders });
+      setProfile(res.data);
+      setEligibility({ age: res.data.age, annual_income: res.data.annual_income, category: res.data.category, state: res.data.state });
+    } catch {
+      setProfile(initialProfile);
+    }
   };
 
   useEffect(() => {
@@ -328,8 +360,20 @@ export default function App() {
 
   const saveProfile = async (e) => {
     e.preventDefault();
-    const res = await api.put("/api/v1/profile", profile, { headers: authHeaders });
-    setProfile(res.data);
+    setProfileSaving(true);
+    setProfileMessage("");
+    setProfileError("");
+    try {
+      const res = await api.put("/api/v1/profile", profile, { headers: authHeaders });
+      setProfile(res.data);
+      setEligibility({ age: res.data.age, annual_income: res.data.annual_income, category: res.data.category, state: res.data.state });
+      setProfileMessage("Profile saved successfully.");
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      setProfileError(Array.isArray(detail) ? detail.map((item) => item.msg).join(", ") : String(detail || "Unable to save profile"));
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const onCreateScheme = async (e) => {
@@ -416,6 +460,9 @@ export default function App() {
     profile,
     setProfile,
     saveProfile,
+    profileSaving,
+    profileMessage,
+    profileError,
     form,
     setForm,
     onCreateScheme,
