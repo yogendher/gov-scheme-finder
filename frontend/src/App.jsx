@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { BrowserRouter, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -66,7 +66,6 @@ function Layout({ user, logout }) {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/schemes">Schemes</NavLink>
           <NavLink to="/eligibility">Eligibility</NavLink>
-          <NavLink to="/applications">Applications</NavLink>
           {user?.role === "admin" && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <button onClick={logout}>Logout</button>
@@ -76,7 +75,6 @@ function Layout({ user, logout }) {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/schemes" element={<SchemesPage />} />
           <Route path="/eligibility" element={<EligibilityPage />} />
-          <Route path="/applications" element={<ApplicationsPage />} />
           {user?.role === "admin" && <Route path="/admin" element={<AdminPage />} />}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
@@ -88,13 +86,13 @@ function Layout({ user, logout }) {
 let shared = {};
 function DashboardPage() {
   const { metrics } = shared;
+  const navigate = useNavigate();
   return (
     <>
       <h1>Dashboard</h1>
       <section className="dashboard-grid">
         <article className="metric-card"><p>Total Schemes</p><h3>{metrics.total}</h3></article>
-        <article className="metric-card"><p>Bookmarked</p><h3>{metrics.savedCount}</h3></article>
-        <article className="metric-card"><p>Applications</p><h3>{metrics.applications}</h3></article>
+        <article className="metric-card clickable" onClick={() => navigate("/schemes?bookmarked=1")}><p>Bookmarked</p><h3>{metrics.savedCount}</h3></article>
       </section>
       <section className="card">
         <h2>Category Distribution</h2>
@@ -113,11 +111,15 @@ function DashboardPage() {
 }
 
 function SchemesPage() {
-  const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, createApplication, exportCsv, user, startEdit, onDeleteScheme } = shared;
+  const { filters, setFilters, fetchSchemes, schemes, bookmarkSet, toggleBookmark, exportCsv, user, startEdit, onDeleteScheme } = shared;
+  const location = useLocation();
+  const bookmarkedOnly = new URLSearchParams(location.search).get("bookmarked") === "1";
+  const visibleSchemes = bookmarkedOnly ? schemes.filter((s) => bookmarkSet.has(s.id)) : schemes;
   return (
     <>
       <h1>Schemes</h1>
       <section className="card">
+        {bookmarkedOnly && <p className="hint-text">Showing bookmarked schemes only.</p>}
         <div className="grid filters">
           <input placeholder="Search by name" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
           <input placeholder="Filter by category" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} />
@@ -126,17 +128,16 @@ function SchemesPage() {
           <button onClick={exportCsv} type="button" className="secondary">Export CSV</button>
         </div>
         <div className="list">
-          {schemes.map((s) => (
+          {visibleSchemes.map((s) => (
             <article className="scheme" key={s.id}>
               <h3>{s.name}</h3>
               <p><strong>Ministry:</strong> {s.ministry}</p>
               <p><strong>Category:</strong> {s.category}</p>
               <p><strong>State:</strong> {s.state}</p>
               <p><strong>Benefits:</strong> {s.benefits}</p>
-              <a href={s.apply_link} target="_blank" rel="noreferrer">Apply Link</a>
+              <a href={s.apply_link}>Open Scheme Link</a>
               <div className="actions">
                 <button onClick={() => toggleBookmark(s.id)}>{bookmarkSet.has(s.id) ? "Bookmarked" : "Bookmark"}</button>
-                <button className="secondary" onClick={() => createApplication(s.id)}>Track Apply</button>
                 {user?.role === "admin" && <button className="secondary" onClick={() => startEdit(s)}>Edit</button>}
                 {user?.role === "admin" && <button className="danger" onClick={() => onDeleteScheme(s.id)}>Delete</button>}
               </div>
@@ -166,25 +167,6 @@ function EligibilityPage() {
             <li key={row.scheme.id}>{row.scheme.name} - {row.match ? "Eligible" : `Not eligible (${row.reasons.join(", ")})`}</li>
           ))}
         </ul>
-      </section>
-    </>
-  );
-}
-
-function ApplicationsPage() {
-  const { applications } = shared;
-  return (
-    <>
-      <h1>Applications</h1>
-      <section className="card">
-        {applications.length === 0 && <p>No tracked applications yet.</p>}
-        {applications.map((app) => (
-          <div key={app.id} className="scheme">
-            <p><strong>Scheme ID:</strong> {app.scheme_id}</p>
-            <p><strong>Status:</strong> {app.status}</p>
-            <p><strong>Notes:</strong> {app.notes || "-"}</p>
-          </div>
-        ))}
       </section>
     </>
   );
@@ -232,7 +214,6 @@ export default function App() {
   });
   const [schemes, setSchemes] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
-  const [applications, setApplications] = useState([]);
   const [filters, setFilters] = useState({ q: "", category: "", state: "", page: 1, page_size: 10 });
   const [form, setForm] = useState(initialSchemeForm);
   const [editingSchemeId, setEditingSchemeId] = useState(null);
@@ -251,16 +232,11 @@ export default function App() {
     const res = await api.get("/api/v1/bookmarks", { headers: authHeaders });
     setBookmarks(res.data);
   };
-  const fetchApplications = async () => {
-    const res = await api.get("/api/v1/applications", { headers: authHeaders });
-    setApplications(res.data);
-  };
 
   useEffect(() => {
     if (!token) return;
     fetchSchemes();
     fetchBookmarks();
-    fetchApplications();
   }, [token]);
 
   const submitAuth = async (e) => {
@@ -292,7 +268,6 @@ export default function App() {
     setUser(null);
     setSchemes([]);
     setBookmarks([]);
-    setApplications([]);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
   };
@@ -327,10 +302,6 @@ export default function App() {
     else await api.post("/api/v1/bookmarks", { scheme_id: schemeId }, { headers: authHeaders });
     fetchBookmarks();
   };
-  const createApplication = async (schemeId) => {
-    await api.post("/api/v1/applications", { scheme_id: schemeId, status: "interested" }, { headers: authHeaders });
-    fetchApplications();
-  };
   const runEligibility = async (e) => {
     e.preventDefault();
     const res = await api.post("/api/v1/eligibility", eligibility, { headers: authHeaders });
@@ -360,11 +331,10 @@ export default function App() {
     return {
       total: schemes.length,
       savedCount: bookmarks.length,
-      applications: applications.length,
       byCategory,
       maxCategoryCount: Math.max(1, ...Object.values(byCategory)),
     };
-  }, [schemes, bookmarks, applications]);
+  }, [schemes, bookmarks]);
 
   shared = {
     metrics,
@@ -374,7 +344,6 @@ export default function App() {
     schemes,
     bookmarkSet,
     toggleBookmark,
-    createApplication,
     exportCsv,
     user,
     startEdit,
@@ -383,7 +352,6 @@ export default function App() {
     setEligibility,
     runEligibility,
     eligibilityResult,
-    applications,
     form,
     setForm,
     onCreateScheme,

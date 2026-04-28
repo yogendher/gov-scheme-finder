@@ -36,6 +36,7 @@ body { margin: 0; }
 }
 
 .metric-card { background: #0f172a; color: #fff; border-radius: 12px; padding: 14px; }
+.metric-card.clickable { cursor: pointer; }
 .metric-card p { margin: 0; font-size: 13px; opacity: 0.9; }
 .metric-card h3 { margin: 8px 0 0; font-size: 28px; }
 
