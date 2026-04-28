@@ -54,6 +54,25 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserProfileBase(BaseModel):
+    age: int = Field(ge=0, le=120)
+    annual_income: int = Field(ge=0)
+    category: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=100)
+    occupation: str = Field(min_length=2, max_length=100)
+
+
+class UserProfileUpdate(UserProfileBase):
+    pass
+
+
+class UserProfileOut(UserProfileBase):
+    id: int
+    user_id: int
+
+    model_config = {"from_attributes": True}
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

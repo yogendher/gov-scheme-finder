@@ -23,12 +23,16 @@ const initialEligibility = {
   state: "Tamil Nadu",
 };
 
+const initialProfile = {
+  age: 21,
+  annual_income: 300000,
+  category: "Student",
+  state: "All India",
+  occupation: "Student",
+};
+
 function toNumberForm(data) {
-  return {
-    ...data,
-    min_age: Number(data.min_age),
-    max_income: Number(data.max_income),
-  };
+  return { ...data, min_age: Number(data.min_age), max_income: Number(data.max_income) };
 }
 
 function AuthPage({ authMode, setAuthMode, authForm, setAuthForm, submitAuth, authLoading, authError }) {
@@ -42,15 +46,12 @@ function AuthPage({ authMode, setAuthMode, authForm, setAuthForm, submitAuth, au
           <button className={authMode === "register" ? "" : "secondary"} onClick={() => setAuthMode("register")}>Register</button>
         </div>
         <form className="grid" onSubmit={submitAuth}>
-          {authMode === "register" && (
-            <input placeholder="Name" value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />
-          )}
+          {authMode === "register" && <input placeholder="Name" value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} required />}
           <input type="email" placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
           <input type="password" placeholder="Password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} required />
           <button type="submit" disabled={authLoading}>{authLoading ? "Please wait..." : authMode === "login" ? "Login" : "Create Account"}</button>
         </form>
         {authError && <p className="error-text">{authError}</p>}
-        <p className="hint-text">API: {API_URL}</p>
       </section>
     </div>
   );
@@ -66,6 +67,7 @@ function Layout({ user, logout }) {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/schemes">Schemes</NavLink>
           <NavLink to="/eligibility">Eligibility</NavLink>
+          <NavLink to="/profile">Profile</NavLink>
           {user?.role === "admin" && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <button onClick={logout}>Logout</button>
@@ -75,6 +77,7 @@ function Layout({ user, logout }) {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/schemes" element={<SchemesPage />} />
           <Route path="/eligibility" element={<EligibilityPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           {user?.role === "admin" && <Route path="/admin" element={<AdminPage />} />}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
@@ -94,18 +97,6 @@ function DashboardPage() {
         <article className="metric-card"><p>Total Schemes</p><h3>{metrics.total}</h3></article>
         <article className="metric-card clickable" onClick={() => navigate("/schemes?bookmarked=1")}><p>Bookmarked</p><h3>{metrics.savedCount}</h3></article>
       </section>
-      <section className="card">
-        <h2>Category Distribution</h2>
-        <div className="chart-wrap">
-          {Object.entries(metrics.byCategory).map(([category, count]) => (
-            <div className="bar-row" key={category}>
-              <span>{category}</span>
-              <div className="bar-bg"><div className="bar-fill" style={{ width: `${(count / metrics.maxCategoryCount) * 100}%` }} /></div>
-              <strong>{count}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
     </>
   );
 }
@@ -115,17 +106,22 @@ function SchemesPage() {
   const location = useLocation();
   const bookmarkedOnly = new URLSearchParams(location.search).get("bookmarked") === "1";
   const visibleSchemes = bookmarkedOnly ? schemes.filter((s) => bookmarkSet.has(s.id)) : schemes;
+
   return (
     <>
       <h1>Schemes</h1>
       <section className="card">
         {bookmarkedOnly && <p className="hint-text">Showing bookmarked schemes only.</p>}
         <div className="grid filters">
-          <input placeholder="Search by name" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
-          <input placeholder="Filter by category" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} />
-          <input placeholder="Filter by state" value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value })} />
-          <button onClick={fetchSchemes} type="button">Apply Filters</button>
+          <input placeholder="Search by name" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value, page: 1 })} />
+          <input placeholder="Filter by category" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value, page: 1 })} />
+          <input placeholder="Filter by state" value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value, page: 1 })} />
           <button onClick={exportCsv} type="button" className="secondary">Export CSV</button>
+        </div>
+        <div className="pagination-row">
+          <button type="button" className="secondary" disabled={filters.page <= 1} onClick={() => setFilters({ ...filters, page: filters.page - 1 })}>Prev</button>
+          <span>Page {filters.page}</span>
+          <button type="button" className="secondary" onClick={() => setFilters({ ...filters, page: filters.page + 1 })}>Next</button>
         </div>
         <div className="list">
           {visibleSchemes.map((s) => (
@@ -135,7 +131,7 @@ function SchemesPage() {
               <p><strong>Category:</strong> {s.category}</p>
               <p><strong>State:</strong> {s.state}</p>
               <p><strong>Benefits:</strong> {s.benefits}</p>
-              <a href={s.apply_link}>Open Scheme Link</a>
+              <a href={s.apply_link} target="_blank" rel="noreferrer">Open Scheme Link</a>
               <div className="actions">
                 <button onClick={() => toggleBookmark(s.id)}>{bookmarkSet.has(s.id) ? "Bookmarked" : "Bookmark"}</button>
                 {user?.role === "admin" && <button className="secondary" onClick={() => startEdit(s)}>Edit</button>}
@@ -150,11 +146,15 @@ function SchemesPage() {
 }
 
 function EligibilityPage() {
-  const { eligibility, setEligibility, runEligibility, eligibilityResult } = shared;
+  const { eligibility, setEligibility, runEligibility, runEligibilityFromProfile, eligibilityResult, profile } = shared;
   return (
     <>
       <h1>Eligibility Checker</h1>
       <section className="card">
+        <div className="actions">
+          <button type="button" className="secondary" onClick={runEligibilityFromProfile}>Use Profile Details</button>
+        </div>
+        {profile && <p className="hint-text">Profile: Age {profile.age}, Income {profile.annual_income}, Category {profile.category}, State {profile.state}</p>}
         <form className="grid" onSubmit={runEligibility}>
           <input type="number" placeholder="Age" value={eligibility.age} onChange={(e) => setEligibility({ ...eligibility, age: Number(e.target.value) })} required />
           <input type="number" placeholder="Annual Income" value={eligibility.annual_income} onChange={(e) => setEligibility({ ...eligibility, annual_income: Number(e.target.value) })} required />
@@ -167,6 +167,25 @@ function EligibilityPage() {
             <li key={row.scheme.id}>{row.scheme.name} - {row.match ? "Eligible" : `Not eligible (${row.reasons.join(", ")})`}</li>
           ))}
         </ul>
+      </section>
+    </>
+  );
+}
+
+function ProfilePage() {
+  const { profile, setProfile, saveProfile } = shared;
+  return (
+    <>
+      <h1>User Profile</h1>
+      <section className="card">
+        <form className="grid" onSubmit={saveProfile}>
+          <input type="number" placeholder="Age" value={profile.age} onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })} required />
+          <input type="number" placeholder="Annual Income" value={profile.annual_income} onChange={(e) => setProfile({ ...profile, annual_income: Number(e.target.value) })} required />
+          <input placeholder="Category" value={profile.category} onChange={(e) => setProfile({ ...profile, category: e.target.value })} required />
+          <input placeholder="State" value={profile.state} onChange={(e) => setProfile({ ...profile, state: e.target.value })} required />
+          <input placeholder="Occupation" value={profile.occupation} onChange={(e) => setProfile({ ...profile, occupation: e.target.value })} required />
+          <button type="submit">Save Profile</button>
+        </form>
       </section>
     </>
   );
@@ -220,6 +239,7 @@ export default function App() {
   const [editForm, setEditForm] = useState(initialSchemeForm);
   const [eligibility, setEligibility] = useState(initialEligibility);
   const [eligibilityResult, setEligibilityResult] = useState([]);
+  const [profile, setProfile] = useState(initialProfile);
 
   const api = useMemo(() => axios.create({ baseURL: API_URL }), []);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -232,12 +252,22 @@ export default function App() {
     const res = await api.get("/api/v1/bookmarks", { headers: authHeaders });
     setBookmarks(res.data);
   };
+  const fetchProfile = async () => {
+    const res = await api.get("/api/v1/profile", { headers: authHeaders });
+    setProfile(res.data);
+    setEligibility({ age: res.data.age, annual_income: res.data.annual_income, category: res.data.category, state: res.data.state });
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    fetchBookmarks();
+    fetchProfile();
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
     fetchSchemes();
-    fetchBookmarks();
-  }, [token]);
+  }, [token, filters.q, filters.category, filters.state, filters.page, filters.page_size]);
 
   const submitAuth = async (e) => {
     e.preventDefault();
@@ -253,11 +283,7 @@ export default function App() {
       localStorage.setItem("user", JSON.stringify(res.data.user));
     } catch (error) {
       const detail = error?.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setAuthError(detail.map((item) => item.msg).join(", "));
-      } else {
-        setAuthError(String(detail || error?.message || "Authentication failed"));
-      }
+      setAuthError(Array.isArray(detail) ? detail.map((item) => item.msg).join(", ") : String(detail || error?.message || "Authentication failed"));
     } finally {
       setAuthLoading(false);
     }
@@ -272,12 +298,19 @@ export default function App() {
     localStorage.removeItem("user");
   };
 
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    const res = await api.put("/api/v1/profile", profile, { headers: authHeaders });
+    setProfile(res.data);
+  };
+
   const onCreateScheme = async (e) => {
     e.preventDefault();
     await api.post("/api/v1/schemes", toNumberForm(form), { headers: authHeaders });
     setForm(initialSchemeForm);
     fetchSchemes();
   };
+
   const onDeleteScheme = async (id) => {
     await api.delete(`/api/v1/schemes/${id}`, { headers: authHeaders });
     fetchSchemes();
@@ -296,17 +329,25 @@ export default function App() {
     cancelEdit();
     fetchSchemes();
   };
+
   const toggleBookmark = async (schemeId) => {
     const isSaved = bookmarks.some((b) => b.id === schemeId);
     if (isSaved) await api.delete(`/api/v1/bookmarks/${schemeId}`, { headers: authHeaders });
     else await api.post("/api/v1/bookmarks", { scheme_id: schemeId }, { headers: authHeaders });
     fetchBookmarks();
   };
+
   const runEligibility = async (e) => {
     e.preventDefault();
     const res = await api.post("/api/v1/eligibility", eligibility, { headers: authHeaders });
     setEligibilityResult(res.data);
   };
+
+  const runEligibilityFromProfile = async () => {
+    const res = await api.get("/api/v1/eligibility/from-profile", { headers: authHeaders });
+    setEligibilityResult(res.data.results);
+  };
+
   const exportCsv = () => {
     if (schemes.length === 0) return;
     const headers = ["id", "name", "ministry", "category", "state", "min_age", "max_income", "eligibility_text", "benefits", "apply_link"];
@@ -325,16 +366,7 @@ export default function App() {
   };
 
   const bookmarkSet = useMemo(() => new Set(bookmarks.map((b) => b.id)), [bookmarks]);
-  const metrics = useMemo(() => {
-    const byCategory = {};
-    schemes.forEach((s) => { byCategory[s.category] = (byCategory[s.category] || 0) + 1; });
-    return {
-      total: schemes.length,
-      savedCount: bookmarks.length,
-      byCategory,
-      maxCategoryCount: Math.max(1, ...Object.values(byCategory)),
-    };
-  }, [schemes, bookmarks]);
+  const metrics = useMemo(() => ({ total: schemes.length, savedCount: bookmarks.length }), [schemes, bookmarks]);
 
   shared = {
     metrics,
@@ -351,7 +383,11 @@ export default function App() {
     eligibility,
     setEligibility,
     runEligibility,
+    runEligibilityFromProfile,
     eligibilityResult,
+    profile,
+    setProfile,
+    saveProfile,
     form,
     setForm,
     onCreateScheme,

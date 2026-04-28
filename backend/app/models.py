@@ -15,8 +15,24 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     bookmarks = relationship("Bookmark", back_populates="user", cascade="all, delete-orphan")
     applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_user_profile"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    age = Column(Integer, nullable=True)
+    annual_income = Column(Integer, nullable=True)
+    category = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    occupation = Column(String(100), nullable=True)
+
+    user = relationship("User", back_populates="profile")
 
 
 class Scheme(Base):
